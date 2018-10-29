@@ -16,8 +16,8 @@ package server
 
 import (
 	"errors"
-	"github.com/rsrdesarrollo/ssh-tunnel/common"
-	"github.com/rsrdesarrollo/ssh-tunnel/models"
+	"github.com/rsrdesarrollo/SaSSHimi/common"
+	"github.com/rsrdesarrollo/SaSSHimi/models"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh"
 	"net"
@@ -139,7 +139,7 @@ func (t *tunnel) handleClients() {
 			delete(t.clients, msg.ClientId)
 		} else {
 			var writed = 0
-			for writed < len(msg.Data){
+			for writed < len(msg.Data) {
 				wn, err := client.Conn.Write(msg.Data[writed:])
 				writed += wn
 
@@ -194,8 +194,8 @@ func Run() {
 		common.Logger.Info("New connection from ", conn.RemoteAddr().String())
 
 		client := models.Client{
-			Id:   conn.RemoteAddr().String(),
-			Conn: conn,
+			Id:       conn.RemoteAddr().String(),
+			Conn:     conn,
 			OutChann: tunnel.outChan,
 		}
 

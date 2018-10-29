@@ -15,7 +15,7 @@
 package cmd
 
 import (
-	"github.com/rsrdesarrollo/ssh-tunnel/agent"
+	"github.com/rsrdesarrollo/SaSSHimi/agent"
 	"github.com/spf13/cobra"
 )
 

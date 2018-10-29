@@ -20,7 +20,7 @@ You only need [golang](https://golang.org/dl/) to use this tool.
 Just install the command line tool
 
 ```
-go install  github.com/rsrdesarrollo/ssh-tunnel
+go install  github.com/rsrdesarrollo/SaSSHimi
 ```
 
 ### Usage

@@ -16,8 +16,8 @@ package agent
 
 import (
 	"github.com/armon/go-socks5"
-	"github.com/rsrdesarrollo/ssh-tunnel/common"
-	"github.com/rsrdesarrollo/ssh-tunnel/models"
+	"github.com/rsrdesarrollo/SaSSHimi/common"
+	"github.com/rsrdesarrollo/SaSSHimi/models"
 	"log"
 	"net"
 	"os"
@@ -67,13 +67,14 @@ func (a *agent) startSocksServer() {
 
 	for {
 		conn, err := ln.Accept()
-		if err != nil{
+		if err != nil {
 			common.Logger.Fatal("Error accepting socks connection: " + err.Error())
 		}
 
 		common.Logger.Info("New socks client from ", conn.RemoteAddr().String())
 		go server.ServeConn(conn)
-	}}
+	}
+}
 
 func (a *agent) handleInOutData() {
 	clientsMap := make(map[string]models.Client)
@@ -100,8 +101,8 @@ func (a *agent) handleInOutData() {
 			}
 
 			client = models.Client{
-				Id:   msg.ClientId,
-				Conn: conn,
+				Id:       msg.ClientId,
+				Conn:     conn,
 				OutChann: a.outChannel,
 			}
 
@@ -115,7 +116,7 @@ func (a *agent) handleInOutData() {
 			delete(clientsMap, msg.ClientId)
 		} else {
 			var writed = 0
-			for writed < len(msg.Data){
+			for writed < len(msg.Data) {
 				wn, err := client.Conn.Write(msg.Data[writed:])
 				writed += wn
 

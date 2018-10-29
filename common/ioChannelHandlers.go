@@ -17,7 +17,7 @@ package common
 import (
 	"bufio"
 	"encoding/json"
-	"github.com/rsrdesarrollo/ssh-tunnel/models"
+	"github.com/rsrdesarrollo/SaSSHimi/models"
 	"io"
 )
 
@@ -59,7 +59,7 @@ func WriteOutputData(outChannel chan models.DataMessage, writer io.Writer) {
 
 		data = append(data, '\n')
 		writed := 0
-		for writed < len(data){
+		for writed < len(data) {
 			wn, err := writer.Write(data[writed:])
 			writed += wn
 
