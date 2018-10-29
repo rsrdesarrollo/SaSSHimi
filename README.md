@@ -25,7 +25,31 @@ go install  github.com/rsrdesarrollo/SaSSHimi
 
 ### Usage
 
-*TBD*
+Just run it as a normal ssh client
+
+```bash
+SaSSHimi server user@localhost
+```
+
+You can fing more help on the cli
+
+```bash
+$ SaSSHimi server --help
+
+Run local server to create tunnels
+
+Usage:
+  SaSSHimi server <user@host:port|host_id> [flags]
+
+Flags:
+      --bind string            Help message for toggle (default "127.0.0.1:8080")
+  -h, --help                   help for server
+  -i, --identity_file string   Path to private key
+
+Global Flags:
+      --config string   config file (default is $HOME/.SaSSHimi.yaml)
+  -v, --verbose count   verbose level
+```
 
 ### TODO
 

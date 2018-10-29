@@ -52,6 +52,6 @@ var serverCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(serverCmd)
 
-	serverCmd.Flags().StringVar(&bindAddress, "bind", "127.0.0.1:8080", "Help message for toggle")
+	serverCmd.Flags().StringVar(&bindAddress, "bind", "127.0.0.1:8080", "Set local bind address and port")
 	serverCmd.Flags().StringVarP(&idFile, "identity_file", "i", "", "Path to private key")
 }
