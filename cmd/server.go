@@ -22,6 +22,7 @@ import (
 )
 
 var bindAddress string
+var idFile string
 
 // serverCmd represents the server command
 var serverCmd = &cobra.Command{
@@ -42,6 +43,7 @@ var serverCmd = &cobra.Command{
 
 		subv.SetDefault("User", user)
 		subv.SetDefault("RemoteHost", remoteHost)
+		subv.SetDefault("PrivateKey", idFile)
 
 		server.Run(subv, bindAddress, verboseLevel)
 	},
@@ -51,4 +53,5 @@ func init() {
 	rootCmd.AddCommand(serverCmd)
 
 	serverCmd.Flags().StringVar(&bindAddress, "bind", "127.0.0.1:8080", "Help message for toggle")
+	serverCmd.Flags().StringVarP(&idFile, "identity_file", "i", "", "Path to private key")
 }
