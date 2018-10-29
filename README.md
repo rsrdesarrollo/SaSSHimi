@@ -1,8 +1,10 @@
-# SSH Tunnel
+<p align="center">
+    <img width=500 src="logo-full.png?raw=true">
+</p>
 
 Emulate `ssh -D` behavior even if `AllowTcpForwarding` is disabled by administrator in `sshd_config`. This tool creates 
-the tunnel sending serialized data through STDIN to a remote process and receiving the response trought STDOUT on a 
-normal SSH session channel.
+the tunnel sending serialized data through STDIN to a remote process (which is running a Socks5 Server) and receiving
+the response trought STDOUT on a normal SSH session channel.
 
 ## Getting Started
 
@@ -47,4 +49,4 @@ We use [SemVer](http://semver.org/) for versioning. For the versions available, 
 
 ## License
 
-This project is licensed under the Apache License Version 2.0- see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the Apache License Version 2.0- see the [LICENSE](LICENSE) file for details
