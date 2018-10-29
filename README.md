@@ -1,5 +1,5 @@
 <p align="center">
-    <img width=500 src="logo-full.png?raw=true">
+    <img width=500 src="logo_full.png?raw=true">
 </p>
 
 Emulate `ssh -D` behavior even if `AllowTcpForwarding` is disabled by administrator in `sshd_config`. This tool creates 
