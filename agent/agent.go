@@ -44,7 +44,7 @@ func (a *agent) close() {
 	a.channelOpen = false
 }
 
-func (a *agent) startSocksServer() {
+func (a *agent) startSocksServer(done chan struct{}) {
 	conf := &socks5.Config{
 		Logger: log.New(os.Stderr, "", log.LstdFlags),
 	}
@@ -57,21 +57,19 @@ func (a *agent) startSocksServer() {
 
 	common.Logger.Info("Handling sock connection")
 
-	ln, err := net.Listen("tcp", "127.0.1.1:8888")
+	ln, err := net.Listen("unix", a.sockFilePath)
 
 	if err != nil {
-		common.Logger.Fatal("Failed to bind local port " + err.Error())
+		common.Logger.Fatal("Failed to bind local socket " + err.Error())
 	}
 
-	common.Logger.Info("Socks porxy listening on 127.0.1.1:8888")
-
+	common.Logger.Infof("Socks porxy listening on unix://%s", a.sockFilePath)
+	done <- struct{}{}
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			common.Logger.Fatal("Error accepting socks connection: " + err.Error())
 		}
-
-		common.Logger.Info("New socks client from ", conn.RemoteAddr().String())
 		go server.ServeConn(conn)
 	}
 }
@@ -94,7 +92,7 @@ func (a *agent) handleInOutData() {
 
 		if prs == false {
 			//conn, err := net.Dial("unix", a.sockFilePath) "tcp", "127.0.1.1:8888"
-			conn, err := net.Dial("tcp", "127.0.1.1:8888")
+			conn, err := net.Dial("unix", a.sockFilePath)
 
 			if err != nil {
 				common.Logger.Error("Connection dial error: ", err)
@@ -145,9 +143,10 @@ func Run() {
 	defer onExit()
 	common.ExitCallback(onExit)
 
-	go agent.startSocksServer()
+	done := make(chan struct{})
+	go agent.startSocksServer(done)
+	<-done
 
-	time.Sleep(1 * time.Second)
 	agent.channelOpen = true
 
 	go agent.handleInOutData()

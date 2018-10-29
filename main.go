@@ -14,7 +14,7 @@
 
 package main
 
-import "github.com/rsrdesarrollo/ssh-tunnel/cmd"
+import "github.com/rsrdesarrollo/SaSSHimi/cmd"
 
 func main() {
 	cmd.Execute()

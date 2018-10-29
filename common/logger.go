@@ -19,7 +19,7 @@ import (
 	"os"
 )
 
-var Logger = logging.MustGetLogger("ssh-tunnel")
+var Logger = logging.MustGetLogger("SaSSHimi")
 
 func init() {
 	var format = logging.MustStringFormatter(
@@ -30,7 +30,7 @@ func init() {
 	stderrBackendFormater := logging.NewBackendFormatter(stderrBackend, format)
 
 	stderrBackendLeveled := logging.AddModuleLevel(stderrBackendFormater)
-	stderrBackendLeveled.SetLevel(logging.DEBUG, "")
 
 	logging.SetBackend(stderrBackendLeveled)
+
 }

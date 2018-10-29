@@ -17,24 +17,38 @@ package cmd
 import (
 	"github.com/rsrdesarrollo/SaSSHimi/server"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"strings"
 )
+
+var bindAddress string
 
 // serverCmd represents the server command
 var serverCmd = &cobra.Command{
-	Use:   "server",
-	Short: "A brief description of your command",
+	Use:   "server <user@host:port|host_id>",
+	Short: "Run local server to create tunnels",
 	Long:  ``,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		server.Run()
+		tokens := strings.Split(args[0], "@")
+
+		user, remoteHost := strings.Join(tokens[:len(tokens)-1], "@"), tokens[len(tokens)-1]
+
+		subv := viper.Sub(remoteHost)
+
+		if subv == nil {
+			subv = viper.GetViper()
+		}
+
+		subv.SetDefault("User", user)
+		subv.SetDefault("RemoteHost", remoteHost)
+
+		server.Run(subv, bindAddress, verboseLevel)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// serverCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	serverCmd.Flags().StringVar(&bindAddress, "bind", "127.0.0.1:8080", "Help message for toggle")
 }

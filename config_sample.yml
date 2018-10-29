@@ -1,0 +1,8 @@
+custom_name:
+  User: "myuser"
+  Password: "mysecret"
+  RemoteHost: "example2.com:22443"
+custom_example_pk:
+  User: "myuser"
+  PrivateKey: "~/ssh/id_rsa"
+  RemoteHost: "example2.com:22443"

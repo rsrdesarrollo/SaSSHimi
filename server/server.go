@@ -16,13 +16,19 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"github.com/rsrdesarrollo/SaSSHimi/common"
 	"github.com/rsrdesarrollo/SaSSHimi/models"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/terminal"
+	"io/ioutil"
 	"net"
 	"os"
+	user2 "os/user"
+	"strings"
 	"sync"
+	"syscall"
 )
 
 type tunnel struct {
@@ -32,30 +38,86 @@ type tunnel struct {
 	clientsLock *sync.Mutex
 	inChan      chan models.DataMessage
 	outChan     chan models.DataMessage
+	viper       *viper.Viper
 }
 
-func newTunnel() *tunnel {
+func newTunnel(viper *viper.Viper) *tunnel {
 	return &tunnel{
-		isOpen:      false,
+		isOpen:      true,
 		clients:     make(map[string]models.Client),
 		clientsLock: &sync.Mutex{},
 		inChan:      make(chan models.DataMessage, 10),
 		outChan:     make(chan models.DataMessage, 10),
+		viper:       viper,
 	}
 }
 
-func (t *tunnel) openTunnel() error {
-	var err error
+func (t *tunnel) getRemoteHost() string {
+	remoteHost := t.viper.GetString("RemoteHost")
+	if !strings.Contains(remoteHost, ":") {
+		remoteHost = remoteHost + ":22"
+	}
+	return remoteHost
+}
 
-	config := &ssh.ClientConfig{
-		User:            viper.GetString("User"),
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Auth: []ssh.AuthMethod{
-			ssh.Password(viper.GetString("Password")),
-		},
+func (t *tunnel) getUsername() string {
+	user := t.viper.GetString("User")
+	if user == "" {
+		user, _ := user2.Current()
+		return user.Name
+	}
+	return user
+}
+
+func (t *tunnel) getPassword() string {
+	password := t.viper.GetString("Password")
+	if password == "" {
+		fmt.Printf("%s@%s's password: ", t.getUsername(), t.getRemoteHost())
+		bytePassword, _ := terminal.ReadPassword(int(syscall.Stdin))
+		password = string(bytePassword)
+	}
+	return password
+}
+
+func (t *tunnel) getPublicKey() ssh.Signer {
+	pkFilePath := t.viper.GetString("PrivateKey")
+
+	if pkFilePath == "" {
+		return nil
 	}
 
-	t.sshClient, err = ssh.Dial("tcp", viper.GetString("RemoteHost"), config)
+	key, err := ioutil.ReadFile(pkFilePath)
+	if err != nil {
+		common.Logger.Fatalf("unable to read private key: %v", err)
+	}
+
+	// Create the Signer for this private key.
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		common.Logger.Fatalf("unable to parse private key: %v", err)
+	}
+
+	return signer
+}
+
+func (t *tunnel) openTunnel(verboseLevel int) error {
+	var err error
+
+	var authMethods = []ssh.AuthMethod{}
+
+	pkSigner := t.getPublicKey()
+	if pkSigner != nil {
+		authMethods = append(authMethods, ssh.PublicKeys(pkSigner))
+	}
+	authMethods = append(authMethods, ssh.Password(t.getPassword()))
+
+	config := &ssh.ClientConfig{
+		User:            t.getUsername(),
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Auth:            authMethods,
+	}
+
+	t.sshClient, err = ssh.Dial("tcp", t.getRemoteHost(), config)
 
 	if err != nil {
 		return errors.New("Dial error: " + err.Error())
@@ -112,14 +174,19 @@ func (t *tunnel) openTunnel() error {
 	go common.ReadInputData(t.inChan, remoteStdOut)
 	go common.WriteOutputData(t.outChan, remoteStdIn)
 
-	session.Run("./daemon agent")
+	if verboseLevel == 0 {
+		session.Run("./daemon agent")
+	} else {
+		verbose := strings.Repeat("v", verboseLevel)
+		session.Run("./daemon -" + verbose + " agent")
+	}
 
 	t.isOpen = false
 	return errors.New("Remote process is dead")
 }
 
 func (t *tunnel) handleClients() {
-	for {
+	for t.isOpen {
 		msg := <-t.inChan
 
 		t.clientsLock.Lock()
@@ -158,17 +225,17 @@ func (t *tunnel) handleClients() {
 	}
 }
 
-func Run() {
+func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 
-	ln, err := net.Listen("tcp", "127.0.0.1:8080")
+	ln, err := net.Listen("tcp", bindAddress)
 
 	if err != nil {
 		panic("Failed to bind local port " + err.Error())
 	}
 
-	tunnel := newTunnel()
+	tunnel := newTunnel(viper)
 	go func() {
-		err = tunnel.openTunnel()
+		err = tunnel.openTunnel(verboseLevel)
 
 		if err != nil {
 			common.Logger.Fatal("Failed to open tunnel ", err.Error())
@@ -185,13 +252,13 @@ func Run() {
 
 	go tunnel.handleClients()
 
-	for {
+	for tunnel.isOpen {
 		conn, err := ln.Accept()
 		if err != nil {
 			common.Logger.Fatalf("Error in conncetion accept: %s", err.Error())
 		}
 
-		common.Logger.Info("New connection from ", conn.RemoteAddr().String())
+		common.Logger.Debug("New connection from ", conn.RemoteAddr().String())
 
 		client := models.Client{
 			Id:       conn.RemoteAddr().String(),

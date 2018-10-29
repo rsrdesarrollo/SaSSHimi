@@ -23,7 +23,6 @@ import (
 var agentCmd = &cobra.Command{
 	Use:   "agent",
 	Short: "Run as remote agent process",
-	Long:  `Run as remote agent process`,
 	Run: func(cmd *cobra.Command, args []string) {
 		agent.Run()
 	},

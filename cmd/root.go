@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/op/go-logging"
 	"os"
 
 	"github.com/mitchellh/go-homedir"
@@ -24,10 +25,11 @@ import (
 )
 
 var cfgFile string
+var verboseLevel int
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "ssh-tunnel",
+	Use:   os.Args[0],
 	Short: "Generate SSH Dynamic Tunnels when AllowTcpForwarding is off",
 	Long: `This tool aims to create a Dynamic Tunnel trougth a shell channel 
 of SSH using stdin and stdout to transmiti information`,
@@ -48,14 +50,12 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ssh-tunnel.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.SaSSHimi.yaml)")
+	rootCmd.PersistentFlags().CountVarP(&verboseLevel, "verbose", "v", "verbose level")
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	viper.SetDefault("RemoteHost", "127.0.0.1:22")
-	viper.SetDefault("User", "root")
-	viper.SetDefault("Password", "toor")
 
 	if cfgFile != "" {
 		// Use config file from the flag.
@@ -69,9 +69,21 @@ func initConfig() {
 		}
 		// Search config in home directory with name ".ssh-tunnel" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".ssh-tunnel")
+		viper.SetConfigName(".SaSSHimi")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match
 	viper.ReadInConfig()
+
+	if verboseLevel == 0 {
+		logging.SetLevel(logging.ERROR, "SaSSHimi")
+	} else if verboseLevel == 1 {
+		logging.SetLevel(logging.WARNING, "SaSSHimi")
+	} else if verboseLevel == 2 {
+		logging.SetLevel(logging.NOTICE, "SaSSHimi")
+	} else if verboseLevel == 3 {
+		logging.SetLevel(logging.INFO, "SaSSHimi")
+	} else {
+		logging.SetLevel(logging.DEBUG, "SaSSHimi")
+	}
 }

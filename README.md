@@ -32,6 +32,7 @@ go install  github.com/rsrdesarrollo/SaSSHimi
 * Support Public key authentication.
 * Improve configuration file.
 * Add more command options to control binding ports.
+* Implement known_hosts support
 
 ## Contributing
 
