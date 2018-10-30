@@ -26,11 +26,15 @@ func init() {
 		`%{color}%{time:15:04:05.000} %{program:10s} - %{shortfunc:-20s} ▶ %{level:-8s} %{id:03x}%{color:reset} %{message}`,
 	)
 
+	logfile, _ := os.Open("/tmp/" + os.Args[0] + ".log")
+
 	stderrBackend := logging.NewLogBackend(os.Stderr, "", 0)
+	fileBackend := logging.NewLogBackend(logfile, "", 0)
+
 	stderrBackendFormater := logging.NewBackendFormatter(stderrBackend, format)
 
 	stderrBackendLeveled := logging.AddModuleLevel(stderrBackendFormater)
 
-	logging.SetBackend(stderrBackendLeveled)
+	logging.SetBackend(stderrBackendLeveled, fileBackend)
 
 }

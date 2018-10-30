@@ -32,23 +32,22 @@ import (
 )
 
 type tunnel struct {
-	isOpen      bool
-	sshClient   *ssh.Client
-	clients     map[string]models.Client
-	clientsLock *sync.Mutex
-	inChan      chan models.DataMessage
-	outChan     chan models.DataMessage
-	viper       *viper.Viper
+	models.ChannelForwarder
+	sshClient *ssh.Client
+	viper     *viper.Viper
 }
 
 func newTunnel(viper *viper.Viper) *tunnel {
 	return &tunnel{
-		isOpen:      true,
-		clients:     make(map[string]models.Client),
-		clientsLock: &sync.Mutex{},
-		inChan:      make(chan models.DataMessage, 10),
-		outChan:     make(chan models.DataMessage, 10),
-		viper:       viper,
+		ChannelForwarder: models.ChannelForwarder{
+			OutChannel: make(chan *models.DataMessage, 10),
+			InChannel:  make(chan *models.DataMessage, 10),
+
+			ChannelOpen: true,
+			ClientsLock: &sync.Mutex{},
+			Clients:     make(map[string]*models.Client),
+		},
+		viper: viper,
 	}
 }
 
@@ -159,20 +158,22 @@ func (t *tunnel) openTunnel(verboseLevel int) error {
 		return errors.New("Failed to create session: " + err.Error())
 	}
 
-	remoteStdIn, err := session.StdinPipe()
+	t.Writer, err = session.StdinPipe()
 	if err != nil {
 		return errors.New("Failed to pipe STDIN on session: " + err.Error())
 	}
 
-	remoteStdOut, err := session.StdoutPipe()
+	t.Reader, err = session.StdoutPipe()
 	if err != nil {
 		return errors.New("Failed to pipe STDOUT on session: " + err.Error())
 	}
 
 	session.Stderr = os.Stderr
 
-	go common.ReadInputData(t.inChan, remoteStdOut)
-	go common.WriteOutputData(t.outChan, remoteStdIn)
+	go t.ReadInputData()
+	go t.WriteOutputData()
+
+	common.Logger.Info("SSH Tunnel Open :)")
 
 	if verboseLevel == 0 {
 		session.Run("./daemon agent")
@@ -181,29 +182,26 @@ func (t *tunnel) openTunnel(verboseLevel int) error {
 		session.Run("./daemon -" + verbose + " agent")
 	}
 
-	t.isOpen = false
+	t.ChannelOpen = false
 	return errors.New("Remote process is dead")
 }
 
 func (t *tunnel) handleClients() {
-	for t.isOpen {
-		msg := <-t.inChan
+	for t.ChannelOpen {
+		msg := <-t.InChannel
 
-		t.clientsLock.Lock()
+		t.ClientsLock.Lock()
 
-		client, prs := t.clients[msg.ClientId]
+		client, prs := t.Clients[msg.ClientId]
 
 		if prs == false {
-			common.Logger.Warningf("Received data from closed client %s", client.Id)
+			common.Logger.Warning("Received data from closed client", msg.ClientId)
 			// Send an empty message to close remote connection
-			t.outChan <- models.DataMessage{
-				ClientId: client.Id,
-				Data:     []byte{},
-			}
+			t.OutChannel <- models.NewMessage(client.Id, []byte{})
 
 		} else if len(msg.Data) == 0 {
-			client.Conn.Close()
-			delete(t.clients, msg.ClientId)
+			client.Close(false)
+			delete(t.Clients, msg.ClientId)
 		} else {
 			var writed = 0
 			for writed < len(msg.Data) {
@@ -211,8 +209,8 @@ func (t *tunnel) handleClients() {
 				writed += wn
 
 				if err != nil {
-					client.Close()
-					delete(t.clients, msg.ClientId)
+					client.Close(true)
+					delete(t.Clients, msg.ClientId)
 
 					common.Logger.Errorf("Error Writing: %s\n", err.Error())
 					break
@@ -221,7 +219,7 @@ func (t *tunnel) handleClients() {
 
 		}
 
-		t.clientsLock.Unlock()
+		t.ClientsLock.Unlock()
 	}
 }
 
@@ -242,17 +240,16 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 		}
 	}()
 
-	onExit := func() {
-		tunnel.sshClient.Close()
-		ln.Close()
-	}
+	//onExit := func() {
+	//	tunnel.sshClient.Close()
+	//	ln.Close()
+	//}
 
-	common.ExitCallback(onExit)
-	defer onExit()
+	//common.ExitCallback(onExit)
 
 	go tunnel.handleClients()
 
-	for tunnel.isOpen {
+	for tunnel.ChannelOpen {
 		conn, err := ln.Accept()
 		if err != nil {
 			common.Logger.Fatalf("Error in conncetion accept: %s", err.Error())
@@ -260,15 +257,15 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 
 		common.Logger.Debug("New connection from ", conn.RemoteAddr().String())
 
-		client := models.Client{
-			Id:       conn.RemoteAddr().String(),
-			Conn:     conn,
-			OutChann: tunnel.outChan,
-		}
+		client := models.NewClient(
+			conn.RemoteAddr().String(),
+			conn,
+			tunnel.OutChannel,
+		)
 
-		tunnel.clientsLock.Lock()
-		tunnel.clients[client.Id] = client
-		tunnel.clientsLock.Unlock()
-		go common.ReadFromClientToChannel(client, tunnel.outChan)
+		tunnel.ClientsLock.Lock()
+		tunnel.Clients[client.Id] = client
+		tunnel.ClientsLock.Unlock()
+		go client.ReadFromClientToChannel()
 	}
 }

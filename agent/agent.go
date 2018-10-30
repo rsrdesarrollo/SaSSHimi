@@ -21,27 +21,28 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 	"time"
 )
 
 type agent struct {
-	channelOpen  bool
+	models.ChannelForwarder
 	sockFilePath string
-	inChannel    chan models.DataMessage
-	outChannel   chan models.DataMessage
 }
 
 func newAgent() agent {
 	return agent{
-		channelOpen:  false,
-		sockFilePath: "./daemon_" + common.RandStringRunes(10),
-		inChannel:    make(chan models.DataMessage, 10),
-		outChannel:   make(chan models.DataMessage, 10),
+		ChannelForwarder: models.ChannelForwarder{
+			OutChannel:  make(chan *models.DataMessage, 10),
+			InChannel:   make(chan *models.DataMessage, 10),
+			Reader:      os.Stdin,
+			Writer:      os.Stdout,
+			ChannelOpen: false,
+			Clients:     make(map[string]*models.Client),
+			ClientsLock: &sync.Mutex{},
+		},
+		sockFilePath: "127.0.1.1:8888", //"./daemon_" + common.RandStringRunes(10),
 	}
-}
-
-func (a *agent) close() {
-	a.channelOpen = false
 }
 
 func (a *agent) startSocksServer(done chan struct{}) {
@@ -57,7 +58,7 @@ func (a *agent) startSocksServer(done chan struct{}) {
 
 	common.Logger.Info("Handling sock connection")
 
-	ln, err := net.Listen("unix", a.sockFilePath)
+	ln, err := net.Listen("tcp", a.sockFilePath)
 
 	if err != nil {
 		common.Logger.Fatal("Failed to bind local socket " + err.Error())
@@ -70,57 +71,70 @@ func (a *agent) startSocksServer(done chan struct{}) {
 		if err != nil {
 			common.Logger.Fatal("Error accepting socks connection: " + err.Error())
 		}
+
 		go server.ServeConn(conn)
 	}
 }
 
 func (a *agent) handleInOutData() {
-	clientsMap := make(map[string]models.Client)
+	go a.ReadInputData()
+	go a.WriteOutputData()
 
-	go func() {
-		common.ReadInputData(a.inChannel, os.Stdin)
-		a.close()
-	}()
-	go func() {
-		common.WriteOutputData(a.outChannel, os.Stdout)
-		a.close()
-	}()
+	for a.ChannelOpen {
+		msg := <-a.InChannel
 
-	for a.channelOpen {
-		msg := <-a.inChannel
-		client, prs := clientsMap[msg.ClientId]
+		a.ClientsLock.Lock()
+		client, prs := a.Clients[msg.ClientId]
 
 		if prs == false {
-			//conn, err := net.Dial("unix", a.sockFilePath) "tcp", "127.0.1.1:8888"
-			conn, err := net.Dial("unix", a.sockFilePath)
+			conn, err := net.Dial("tcp", a.sockFilePath)
 
 			if err != nil {
 				common.Logger.Error("Connection dial error: ", err)
+			} else {
+				client = models.NewClient(
+					msg.ClientId,
+					conn,
+					a.OutChannel,
+				)
+
+				common.Logger.Debug("New connection to socks proxy from", conn.LocalAddr().String(), "for client", client.Id)
+				a.Clients[msg.ClientId] = client
+				prs = true
+
+				go client.ReadFromClientToChannel()
 			}
+		}
+		a.ClientsLock.Unlock()
 
-			client = models.Client{
-				Id:       msg.ClientId,
-				Conn:     conn,
-				OutChann: a.outChannel,
-			}
-
-			clientsMap[msg.ClientId] = client
-
-			go common.ReadFromClientToChannel(client, a.outChannel)
+		if prs == false {
+			continue
 		}
 
 		if len(msg.Data) == 0 {
-			client.Conn.Close()
-			delete(clientsMap, msg.ClientId)
+			common.Logger.Debug("Closing client sock connection for ", client.Id)
+			client.Close(false)
+
+			a.ClientsLock.Lock()
+			delete(a.Clients, msg.ClientId)
+			a.ClientsLock.Unlock()
 		} else {
 			var writed = 0
 			for writed < len(msg.Data) {
 				wn, err := client.Conn.Write(msg.Data[writed:])
 				writed += wn
 
+				if writed < len(msg.Data) {
+					common.Logger.Debugf("Need second write of %d bytes", len(msg.Data)-writed)
+				}
+
 				if err != nil {
-					client.Close()
-					delete(clientsMap, msg.ClientId)
+					common.Logger.Error("Error writing to client connection: ", err.Error())
+					client.Close(true)
+
+					a.ClientsLock.Lock()
+					delete(a.Clients, msg.ClientId)
+					a.ClientsLock.Unlock()
 					break
 				}
 			}
@@ -147,11 +161,11 @@ func Run() {
 	go agent.startSocksServer(done)
 	<-done
 
-	agent.channelOpen = true
+	agent.ChannelOpen = true
 
 	go agent.handleInOutData()
 
-	for agent.channelOpen {
+	for agent.ChannelOpen {
 		time.Sleep(1 * time.Second)
 	}
 }

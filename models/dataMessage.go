@@ -14,6 +14,13 @@
 
 package models
 
+func NewMessage(clientId string, data []byte) *DataMessage {
+	return &DataMessage{
+		ClientId: clientId,
+		Data:     data,
+	}
+}
+
 type DataMessage struct {
 	ClientId string `json:"i"`
 	Data     []byte `json:"d"`

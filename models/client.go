@@ -14,18 +14,65 @@
 
 package models
 
-import "net"
+import (
+	"github.com/rsrdesarrollo/SaSSHimi/common"
+	"net"
+	"sync"
+)
 
 type Client struct {
-	Id   string
-	Conn net.Conn
-	OutChann chan DataMessage
+	Id           string
+	Conn         net.Conn
+	OutChann     chan *DataMessage
+	InChann      chan *DataMessage
+	readyToClose bool
+	clientMutex  *sync.Mutex
 }
 
-func (c *Client) Close() {
-	c.OutChann<- DataMessage{
-		ClientId: c.Id,
-		Data:     []byte {},
+func NewClient(id string, conn net.Conn, outChannel chan *DataMessage) *Client {
+	return &Client{
+		Id:           id,
+		Conn:         conn,
+		OutChann:     outChannel,
+		readyToClose: false,
+		clientMutex:  &sync.Mutex{},
 	}
-	c.Conn.Close()
+}
+
+func (c *Client) Close(sendSignal bool) {
+	var shallWaitToClose bool
+
+	c.clientMutex.Lock()
+	if c.readyToClose {
+		shallWaitToClose = true
+	} else {
+		shallWaitToClose = false
+		c.readyToClose = true
+
+		common.Logger.Debug("First attempt to close", c.Id)
+
+		if sendSignal {
+			c.OutChann <- NewMessage(c.Id, []byte{})
+		}
+	}
+	c.clientMutex.Unlock()
+
+	if shallWaitToClose {
+		common.Logger.Debug("Really closing", c.Id)
+		c.Conn.Close()
+	}
+
+}
+
+func (c *Client) ReadFromClientToChannel() {
+	for {
+		data := make([]byte, 1024)
+		readed, err := c.Conn.Read(data)
+		if err != nil {
+			c.Close(true)
+			break
+		}
+
+		c.OutChann <- NewMessage(c.Id, data[:readed])
+	}
 }
