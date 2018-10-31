@@ -12,23 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package common
+package utils
 
 import (
-	"math/rand"
-	"time"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
+func ExitCallback(callBack func()) {
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	var gracefulStop = make(chan os.Signal)
 
-func RandStringRunes(length int) string {
-	b := make([]rune, length)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return string(b)
+	signal.Notify(gracefulStop, syscall.SIGTERM)
+	signal.Notify(gracefulStop, syscall.SIGINT)
+	signal.Notify(gracefulStop, syscall.SIGPIPE)
+	signal.Notify(gracefulStop, syscall.SIGKILL)
+	signal.Notify(gracefulStop, syscall.SIGQUIT)
+	signal.Notify(gracefulStop, syscall.SIGHUP)
+
+	go func() {
+		<-gracefulStop
+		callBack()
+		os.Exit(0)
+	}()
 }

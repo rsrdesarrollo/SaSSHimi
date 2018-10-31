@@ -12,22 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package cli
 
 import (
 	"github.com/rsrdesarrollo/SaSSHimi/agent"
 	"github.com/spf13/cobra"
 )
 
+var useHttpProxy bool
+
 // agentCmd represents the agent command
 var agentCmd = &cobra.Command{
 	Use:   "agent",
 	Short: "Run as remote agent process",
 	Run: func(cmd *cobra.Command, args []string) {
-		agent.Run()
+		agent.Run(useHttpProxy)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(agentCmd)
+
+	agentCmd.Flags().BoolVar(&useHttpProxy, "use-http", false, "Use HTTP proxy instead of HTTP")
 }

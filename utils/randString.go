@@ -12,16 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package models
+package utils
 
-func NewMessage(clientId string, data []byte) *DataMessage {
-	return &DataMessage{
-		ClientId: clientId,
-		Data:     data,
-	}
+import (
+	"math/rand"
+	"time"
+)
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
 }
 
-type DataMessage struct {
-	ClientId string `json:"i"`
-	Data     []byte `json:"d"`
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+func RandStringRunes(length int) string {
+	b := make([]rune, length)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }

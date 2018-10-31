@@ -16,70 +16,73 @@ package agent
 
 import (
 	"github.com/armon/go-socks5"
+	"github.com/elazarl/goproxy"
 	"github.com/rsrdesarrollo/SaSSHimi/common"
-	"github.com/rsrdesarrollo/SaSSHimi/models"
+	"github.com/rsrdesarrollo/SaSSHimi/utils"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"sync"
 	"time"
 )
 
 type agent struct {
-	models.ChannelForwarder
+	common.ChannelForwarder
 	sockFilePath string
+	sockFamily   string
 }
 
 func newAgent() agent {
 	return agent{
-		ChannelForwarder: models.ChannelForwarder{
-			OutChannel:  make(chan *models.DataMessage, 10),
-			InChannel:   make(chan *models.DataMessage, 10),
+		ChannelForwarder: common.ChannelForwarder{
+			OutChannel:  make(chan *common.DataMessage, 10),
+			InChannel:   make(chan *common.DataMessage, 10),
 			Reader:      os.Stdin,
 			Writer:      os.Stdout,
 			ChannelOpen: false,
-			Clients:     make(map[string]*models.Client),
+			Clients:     make(map[string]*common.Client),
 			ClientsLock: &sync.Mutex{},
 		},
-		sockFilePath: "127.0.1.1:8888", //"./daemon_" + common.RandStringRunes(10),
+		sockFamily:   "unix",
+		sockFilePath: "./daemon_" + utils.RandStringRunes(10),
 	}
 }
 
-func (a *agent) startSocksServer(done chan struct{}) {
-	conf := &socks5.Config{
-		Logger: log.New(os.Stderr, "", log.LstdFlags),
-	}
-
-	server, err := socks5.New(conf)
+func (a *agent) runProxyServer(done chan struct{}, useHttpProxy bool) {
+	ln, err := net.Listen(a.sockFamily, a.sockFilePath)
 
 	if err != nil {
-		common.Logger.Fatal("ERROR Creating socks socksServer: " + err.Error())
+		utils.Logger.Fatal("Failed to bind local socket " + err.Error())
 	}
 
-	common.Logger.Info("Handling sock connection")
+	if useHttpProxy {
+		proxy := goproxy.NewProxyHttpServer()
 
-	ln, err := net.Listen("tcp", a.sockFilePath)
+		done <- struct{}{}
 
-	if err != nil {
-		common.Logger.Fatal("Failed to bind local socket " + err.Error())
-	}
-
-	common.Logger.Infof("Socks porxy listening on unix://%s", a.sockFilePath)
-	done <- struct{}{}
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			common.Logger.Fatal("Error accepting socks connection: " + err.Error())
+		http.Serve(ln, proxy)
+	} else {
+		conf := &socks5.Config{
+			Logger: log.New(os.Stderr, "", log.LstdFlags),
 		}
 
-		go server.ServeConn(conn)
+		server, err := socks5.New(conf)
+
+		if err != nil {
+			utils.Logger.Error("ERROR Creating socks socksServer: " + err.Error())
+		}
+
+		done <- struct{}{}
+		err = server.Serve(ln)
+
+		if err != nil {
+			utils.Logger.Error("ERROR Running socks socksServer: " + err.Error())
+		}
 	}
 }
 
 func (a *agent) handleInOutData() {
-	go a.ReadInputData()
-	go a.WriteOutputData()
-
 	for a.ChannelOpen {
 		msg := <-a.InChannel
 
@@ -87,18 +90,18 @@ func (a *agent) handleInOutData() {
 		client, prs := a.Clients[msg.ClientId]
 
 		if prs == false {
-			conn, err := net.Dial("tcp", a.sockFilePath)
+			conn, err := net.Dial(a.sockFamily, a.sockFilePath)
 
 			if err != nil {
-				common.Logger.Error("Connection dial error: ", err)
+				utils.Logger.Error("Connection dial error: ", err)
 			} else {
-				client = models.NewClient(
+				client = common.NewClient(
 					msg.ClientId,
 					conn,
 					a.OutChannel,
 				)
 
-				common.Logger.Debug("New connection to socks proxy from", conn.LocalAddr().String(), "for client", client.Id)
+				utils.Logger.Debug("New connection to socks proxy from", conn.LocalAddr().String(), "for client", client.Id)
 				a.Clients[msg.ClientId] = client
 				prs = true
 
@@ -112,56 +115,52 @@ func (a *agent) handleInOutData() {
 		}
 
 		if len(msg.Data) == 0 {
-			common.Logger.Debug("Closing client sock connection for ", client.Id)
-			client.Close(false)
+			utils.Logger.Debug("Closing client sock connection for ", client.Id)
+			client.Close()
 
 			a.ClientsLock.Lock()
 			delete(a.Clients, msg.ClientId)
 			a.ClientsLock.Unlock()
 		} else {
-			var writed = 0
-			for writed < len(msg.Data) {
-				wn, err := client.Conn.Write(msg.Data[writed:])
-				writed += wn
+			err := client.Write(msg.Data)
 
-				if writed < len(msg.Data) {
-					common.Logger.Debugf("Need second write of %d bytes", len(msg.Data)-writed)
-				}
+			if err != nil {
+				utils.Logger.Error("Error writing to client connection: ", err.Error())
+				client.SetReadyToClose(true)
+				client.Close()
+				client.NotifyEOF()
 
-				if err != nil {
-					common.Logger.Error("Error writing to client connection: ", err.Error())
-					client.Close(true)
-
-					a.ClientsLock.Lock()
-					delete(a.Clients, msg.ClientId)
-					a.ClientsLock.Unlock()
-					break
-				}
+				a.ClientsLock.Lock()
+				delete(a.Clients, msg.ClientId)
+				a.ClientsLock.Unlock()
 			}
-
 		}
-	}
 
+	}
 }
 
-func Run() {
+func Run(useHttpProxy bool) {
 
 	agent := newAgent()
 
 	onExit := func() {
+		utils.Logger.Warning("Agent is closing")
 		selfFilePath, _ := os.Executable()
 		os.Remove(agent.sockFilePath)
 		os.Remove(selfFilePath)
 	}
 
 	defer onExit()
-	common.ExitCallback(onExit)
+	utils.ExitCallback(onExit)
 
-	done := make(chan struct{})
-	go agent.startSocksServer(done)
-	<-done
+	listeningSignal := make(chan struct{})
+	go agent.runProxyServer(listeningSignal, useHttpProxy)
+	<-listeningSignal
 
 	agent.ChannelOpen = true
+
+	go agent.ReadInputData()
+	go agent.WriteOutputData()
 
 	go agent.handleInOutData()
 

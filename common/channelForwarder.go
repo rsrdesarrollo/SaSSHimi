@@ -1,9 +1,9 @@
-package models
+package common
 
 import (
 	"bufio"
 	"encoding/json"
-	"github.com/rsrdesarrollo/SaSSHimi/common"
+	"github.com/rsrdesarrollo/SaSSHimi/utils"
 	"io"
 	"sync"
 )
@@ -22,19 +22,19 @@ type ChannelForwarder struct {
 func (c *ChannelForwarder) ReadInputData() {
 	inReader := bufio.NewReader(c.Reader)
 
-	common.Logger.Debug("Reading from io.Reader to InChannel")
+	utils.Logger.Debug("Reading from io.Reader to InChannel")
 
 	for {
 		var inMsg DataMessage
 		line, err := inReader.ReadBytes('\n')
 		if err != nil || len(line) == 0 {
-			common.Logger.Error("Read ERROR: ", err)
+			utils.Logger.Error("Read ERROR: ", err)
 			break
 		}
 
 		err = json.Unmarshal(line, &inMsg)
 		if err != nil {
-			common.Logger.Error("Unmarshal ERROR: ", err)
+			utils.Logger.Error("Unmarshal ERROR: ", err)
 			continue
 		}
 
@@ -46,14 +46,14 @@ func (c *ChannelForwarder) ReadInputData() {
 
 func (c *ChannelForwarder) WriteOutputData() {
 
-	common.Logger.Debug("Writing from OutChannel to io.Writer")
+	utils.Logger.Debug("Writing from OutChannel to io.Writer")
 
 	for {
 		outMsg := <-c.OutChannel
 		data, err := json.Marshal(*outMsg)
 
 		if err != nil {
-			common.Logger.Error("Marshal ERROR: ", err)
+			utils.Logger.Error("Marshal ERROR: ", err)
 		}
 
 		data = append(data, '\n')
@@ -63,7 +63,7 @@ func (c *ChannelForwarder) WriteOutputData() {
 			writed += wn
 
 			if err != nil {
-				common.Logger.Error("Write ERROR: ", err)
+				utils.Logger.Error("Write ERROR: ", err)
 				break
 			}
 		}

@@ -14,26 +14,14 @@
 
 package common
 
-import (
-	"os"
-	"os/signal"
-	"syscall"
-)
+func NewMessage(clientId string, data []byte) *DataMessage {
+	return &DataMessage{
+		ClientId: clientId,
+		Data:     data,
+	}
+}
 
-func ExitCallback(callBack func()) {
-
-	var gracefulStop = make(chan os.Signal)
-
-	signal.Notify(gracefulStop, syscall.SIGTERM)
-	signal.Notify(gracefulStop, syscall.SIGINT)
-	signal.Notify(gracefulStop, syscall.SIGPIPE)
-	signal.Notify(gracefulStop, syscall.SIGKILL)
-	signal.Notify(gracefulStop, syscall.SIGQUIT)
-	signal.Notify(gracefulStop, syscall.SIGHUP)
-
-	go func() {
-		<-gracefulStop
-		callBack()
-		os.Exit(0)
-	}()
+type DataMessage struct {
+	ClientId string `json:"i"`
+	Data     []byte `json:"d"`
 }

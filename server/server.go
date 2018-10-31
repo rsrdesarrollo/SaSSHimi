@@ -18,10 +18,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/rsrdesarrollo/SaSSHimi/common"
-	"github.com/rsrdesarrollo/SaSSHimi/models"
+	"github.com/rsrdesarrollo/SaSSHimi/utils"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/sys/unix"
 	"io/ioutil"
 	"net"
 	"os"
@@ -32,20 +33,20 @@ import (
 )
 
 type tunnel struct {
-	models.ChannelForwarder
+	common.ChannelForwarder
 	sshClient *ssh.Client
 	viper     *viper.Viper
 }
 
 func newTunnel(viper *viper.Viper) *tunnel {
 	return &tunnel{
-		ChannelForwarder: models.ChannelForwarder{
-			OutChannel: make(chan *models.DataMessage, 10),
-			InChannel:  make(chan *models.DataMessage, 10),
+		ChannelForwarder: common.ChannelForwarder{
+			OutChannel: make(chan *common.DataMessage, 10),
+			InChannel:  make(chan *common.DataMessage, 10),
 
 			ChannelOpen: true,
 			ClientsLock: &sync.Mutex{},
-			Clients:     make(map[string]*models.Client),
+			Clients:     make(map[string]*common.Client),
 		},
 		viper: viper,
 	}
@@ -87,13 +88,13 @@ func (t *tunnel) getPublicKey() ssh.Signer {
 
 	key, err := ioutil.ReadFile(pkFilePath)
 	if err != nil {
-		common.Logger.Fatalf("unable to read private key: %v", err)
+		utils.Logger.Fatalf("unable to read private key: %v", err)
 	}
 
 	// Create the Signer for this private key.
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
-		common.Logger.Fatalf("unable to parse private key: %v", err)
+		utils.Logger.Fatalf("unable to parse private key: %v", err)
 	}
 
 	return signer
@@ -137,14 +138,14 @@ func (t *tunnel) openTunnel(verboseLevel int) error {
 		return errors.New("Failed to open current binary " + err.Error())
 	}
 
-	err = session.Run("cat > ./daemon")
+	err = session.Run("cat > ./.daemon")
 
 	session, err = t.sshClient.NewSession()
 	if err != nil {
 		return errors.New("Failed to create session: " + err.Error())
 	}
 
-	err = session.Run("chmod +x ./daemon")
+	err = session.Run("chmod +x ./.daemon")
 	session.Close()
 
 	if err != nil {
@@ -173,13 +174,13 @@ func (t *tunnel) openTunnel(verboseLevel int) error {
 	go t.ReadInputData()
 	go t.WriteOutputData()
 
-	common.Logger.Info("SSH Tunnel Open :)")
+	utils.Logger.Info("SSH Tunnel Open :)")
 
 	if verboseLevel == 0 {
-		session.Run("./daemon agent")
+		session.Run("./.daemon agent")
 	} else {
 		verbose := strings.Repeat("v", verboseLevel)
-		session.Run("./daemon -" + verbose + " agent")
+		session.Run("./.daemon -" + verbose + " agent")
 	}
 
 	t.ChannelOpen = false
@@ -195,26 +196,23 @@ func (t *tunnel) handleClients() {
 		client, prs := t.Clients[msg.ClientId]
 
 		if prs == false {
-			common.Logger.Warning("Received data from closed client", msg.ClientId)
+			utils.Logger.Warning("Received data from closed client", msg.ClientId)
 			// Send an empty message to close remote connection
-			t.OutChannel <- models.NewMessage(client.Id, []byte{})
+			//t.OutChannel <- common.NewMessage(client.Id, []byte{})
 
 		} else if len(msg.Data) == 0 {
-			client.Close(false)
+			client.Close()
 			delete(t.Clients, msg.ClientId)
 		} else {
-			var writed = 0
-			for writed < len(msg.Data) {
-				wn, err := client.Conn.Write(msg.Data[writed:])
-				writed += wn
+			err := client.Write(msg.Data)
 
-				if err != nil {
-					client.Close(true)
-					delete(t.Clients, msg.ClientId)
+			if err != nil {
+				client.Close()
 
-					common.Logger.Errorf("Error Writing: %s\n", err.Error())
-					break
-				}
+				delete(t.Clients, msg.ClientId)
+
+				utils.Logger.Errorf("Error Writing: %s\n", err.Error())
+				break
 			}
 
 		}
@@ -232,32 +230,35 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 	}
 
 	tunnel := newTunnel(viper)
+
+	termios, _ := unix.IoctlGetTermios(int(syscall.Stdin), unix.TCGETS)
+	onExit := func() {
+		unix.IoctlSetTermios(int(syscall.Stdin), unix.TCGETS, termios)
+		tunnel.sshClient.Close()
+		ln.Close()
+	}
+
+	utils.ExitCallback(onExit)
+
 	go func() {
 		err = tunnel.openTunnel(verboseLevel)
 
 		if err != nil {
-			common.Logger.Fatal("Failed to open tunnel ", err.Error())
+			utils.Logger.Fatal("Failed to open tunnel ", err.Error())
 		}
 	}()
-
-	//onExit := func() {
-	//	tunnel.sshClient.Close()
-	//	ln.Close()
-	//}
-
-	//common.ExitCallback(onExit)
 
 	go tunnel.handleClients()
 
 	for tunnel.ChannelOpen {
 		conn, err := ln.Accept()
 		if err != nil {
-			common.Logger.Fatalf("Error in conncetion accept: %s", err.Error())
+			utils.Logger.Fatalf("Error in conncetion accept: %s", err.Error())
 		}
 
-		common.Logger.Debug("New connection from ", conn.RemoteAddr().String())
+		utils.Logger.Debug("New connection from ", conn.RemoteAddr().String())
 
-		client := models.NewClient(
+		client := common.NewClient(
 			conn.RemoteAddr().String(),
 			conn,
 			tunnel.OutChannel,

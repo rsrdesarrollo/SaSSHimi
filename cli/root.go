@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package cli
 
 import (
 	"fmt"
@@ -35,7 +35,7 @@ var rootCmd = &cobra.Command{
 of SSH using stdin and stdout to transmiti information`,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
+// Execute adds all child cli to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {

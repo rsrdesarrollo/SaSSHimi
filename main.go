@@ -14,8 +14,8 @@
 
 package main
 
-import "github.com/rsrdesarrollo/SaSSHimi/cmd"
+import "github.com/rsrdesarrollo/SaSSHimi/cli"
 
 func main() {
-	cmd.Execute()
+	cli.Execute()
 }
