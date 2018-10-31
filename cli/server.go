@@ -16,6 +16,7 @@ package cli
 
 import (
 	"github.com/rsrdesarrollo/SaSSHimi/server"
+	"github.com/rsrdesarrollo/SaSSHimi/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"strings"
@@ -41,7 +42,13 @@ var serverCmd = &cobra.Command{
 			subv = viper.GetViper()
 		}
 
-		subv.SetDefault("User", user)
+		utils.Logger.Debug("Parsed User:", user)
+		utils.Logger.Debug("Parsed Remote Host:", remoteHost)
+
+		if user != "" {
+			subv.Set("User", user)
+		}
+
 		subv.SetDefault("RemoteHost", remoteHost)
 		subv.SetDefault("PrivateKey", idFile)
 
@@ -52,6 +59,6 @@ var serverCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(serverCmd)
 
-	serverCmd.Flags().StringVar(&bindAddress, "bind", "127.0.0.1:8080", "Set local bind address and port")
+	serverCmd.Flags().StringVar(&bindAddress, "bind", "127.0.0.1:1080", "Set local bind address and port")
 	serverCmd.Flags().StringVarP(&idFile, "identity_file", "i", "", "Path to private key")
 }

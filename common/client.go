@@ -26,7 +26,12 @@ type Client struct {
 	outChann     chan *DataMessage
 	inChann      chan *DataMessage
 	readyToClose bool
+	isDead       bool
 	clientMutex  *sync.Mutex
+}
+
+func (c *Client) IsDead() bool {
+	return c.isDead
 }
 
 func (c *Client) ReadyToClose() bool {
@@ -45,6 +50,11 @@ func NewClient(id string, conn net.Conn, outChannel chan *DataMessage) *Client {
 		readyToClose: false,
 		clientMutex:  &sync.Mutex{},
 	}
+}
+
+func (c *Client) Terminate() {
+	c.isDead = true
+	c.conn.Close()
 }
 
 func (c *Client) Close() {
@@ -85,8 +95,14 @@ func (c *Client) Write(data []byte) error {
 	return nil
 }
 
-func (c *Client) NotifyEOF() {
-	c.outChann <- NewMessage(c.Id, []byte{})
+func (c *Client) NotifyEOF(isDead bool) {
+	msg := NewMessage(c.Id, []byte{})
+	if !isDead {
+		msg.CloseClient = true
+	} else {
+		msg.DeadClient = isDead
+	}
+	c.outChann <- msg
 }
 
 func (c *Client) ReadFromClientToChannel() {
@@ -95,7 +111,7 @@ func (c *Client) ReadFromClientToChannel() {
 		readed, err := c.conn.Read(data)
 		if err != nil {
 			c.Close()
-			c.NotifyEOF()
+			c.NotifyEOF(false)
 			break
 		}
 

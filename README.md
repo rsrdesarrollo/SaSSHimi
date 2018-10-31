@@ -20,6 +20,7 @@ You only need [golang](https://golang.org/dl/) to use this tool.
 Just install the command line tool
 
 ```
+go get  github.com/rsrdesarrollo/SaSSHimi
 go install  github.com/rsrdesarrollo/SaSSHimi
 ```
 
@@ -31,7 +32,7 @@ Just run it as a normal ssh client
 SaSSHimi server user@localhost
 ```
 
-You can fing more help on the cli
+You can fing more help using `--help`
 
 ```bash
 $ SaSSHimi server --help

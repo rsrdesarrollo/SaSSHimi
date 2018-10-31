@@ -94,45 +94,42 @@ func (a *agent) handleInOutData() {
 
 			if err != nil {
 				utils.Logger.Error("Connection dial error: ", err)
-			} else {
-				client = common.NewClient(
-					msg.ClientId,
-					conn,
-					a.OutChannel,
-				)
-
-				utils.Logger.Debug("New connection to socks proxy from", conn.LocalAddr().String(), "for client", client.Id)
-				a.Clients[msg.ClientId] = client
-				prs = true
-
-				go client.ReadFromClientToChannel()
+				a.ClientsLock.Unlock()
+				continue
 			}
+
+			client = common.NewClient(
+				msg.ClientId,
+				conn,
+				a.OutChannel,
+			)
+
+			utils.Logger.Debug("New connection to socks proxy from", conn.LocalAddr().String(), "for client", client.Id)
+			a.Clients[msg.ClientId] = client
+
+			go client.ReadFromClientToChannel()
 		}
 		a.ClientsLock.Unlock()
 
-		if prs == false {
-			continue
-		}
-
-		if len(msg.Data) == 0 {
+		if msg.CloseClient {
 			utils.Logger.Debug("Closing client sock connection for ", client.Id)
-			client.Close()
 
 			a.ClientsLock.Lock()
 			delete(a.Clients, msg.ClientId)
 			a.ClientsLock.Unlock()
-		} else {
+
+			continue
+		}
+
+		// While receiving data from dead clients ingore it until remote end confirms closure
+		if !client.IsDead() {
 			err := client.Write(msg.Data)
 
 			if err != nil {
 				utils.Logger.Error("Error writing to client connection: ", err.Error())
-				client.SetReadyToClose(true)
-				client.Close()
-				client.NotifyEOF()
 
-				a.ClientsLock.Lock()
-				delete(a.Clients, msg.ClientId)
-				a.ClientsLock.Unlock()
+				client.Terminate()
+				client.NotifyEOF(true)
 			}
 		}
 

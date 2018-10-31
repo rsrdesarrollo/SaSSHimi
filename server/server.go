@@ -57,6 +57,8 @@ func (t *tunnel) getRemoteHost() string {
 	if !strings.Contains(remoteHost, ":") {
 		remoteHost = remoteHost + ":22"
 	}
+
+	utils.Logger.Debug("SSH Remote Host:", remoteHost)
 	return remoteHost
 }
 
@@ -66,6 +68,7 @@ func (t *tunnel) getUsername() string {
 		user, _ := user2.Current()
 		return user.Name
 	}
+	utils.Logger.Debug("SSH User:", user)
 	return user
 }
 
@@ -197,24 +200,26 @@ func (t *tunnel) handleClients() {
 
 		if prs == false {
 			utils.Logger.Warning("Received data from closed client", msg.ClientId)
-			// Send an empty message to close remote connection
-			//t.OutChannel <- common.NewMessage(client.Id, []byte{})
-
-		} else if len(msg.Data) == 0 {
-			client.Close()
-			delete(t.Clients, msg.ClientId)
 		} else {
-			err := client.Write(msg.Data)
-
-			if err != nil {
-				client.Close()
-
+			if msg.DeadClient {
+				// ACK for client termination
+				client.NotifyEOF(false)
+				client.Terminate()
 				delete(t.Clients, msg.ClientId)
+			} else if msg.CloseClient {
+				client.Close()
+				delete(t.Clients, msg.ClientId)
+			} else if !client.IsDead() {
+				err := client.Write(msg.Data)
 
-				utils.Logger.Errorf("Error Writing: %s\n", err.Error())
-				break
+				if err != nil {
+					client.Terminate()
+					client.NotifyEOF(true)
+
+					utils.Logger.Errorf("Error Writing: %s\n", err.Error())
+				}
+
 			}
-
 		}
 
 		t.ClientsLock.Unlock()
@@ -254,6 +259,7 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 		conn, err := ln.Accept()
 		if err != nil {
 			utils.Logger.Fatalf("Error in conncetion accept: %s", err.Error())
+			continue
 		}
 
 		utils.Logger.Debug("New connection from ", conn.RemoteAddr().String())
@@ -264,9 +270,7 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 			tunnel.OutChannel,
 		)
 
-		tunnel.ClientsLock.Lock()
 		tunnel.Clients[client.Id] = client
-		tunnel.ClientsLock.Unlock()
 		go client.ReadFromClientToChannel()
 	}
 }
