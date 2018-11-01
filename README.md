@@ -27,13 +27,13 @@ go get  github.com/rsrdesarrollo/SaSSHimi
 
 Just run it as a normal ssh client
 
-```bash
+```
 SaSSHimi server user@localhost
 ```
 
 You can fing more help using `--help`
 
-```bash
+```
 $ SaSSHimi server --help
 
 Run local server to create tunnels
@@ -71,13 +71,13 @@ By default SaSSHimi try to find this config file at `~/.SaSSHimi.yaml`. You can 
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](https://github.com/rsrdesarrollo/ssh-tunnel/contributors) for details on our code of 
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of 
 conduct, and the process for submitting pull requests to this project.
 
 ## Versioning
 
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the 
-[tags on this repository](https://github.com/your/project/tags).
+[tags on this repository](https://github.com/rsrdesarrollo/SaSSHimi/tags).
 
 ## Authors
 
