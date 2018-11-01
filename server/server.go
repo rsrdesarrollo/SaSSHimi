@@ -34,8 +34,9 @@ import (
 
 type tunnel struct {
 	common.ChannelForwarder
-	sshClient *ssh.Client
-	viper     *viper.Viper
+	sshClient  *ssh.Client
+	sshSession *ssh.Session
+	viper      *viper.Viper
 }
 
 func newTunnel(viper *viper.Viper) *tunnel {
@@ -47,6 +48,8 @@ func newTunnel(viper *viper.Viper) *tunnel {
 			ChannelOpen: true,
 			ClientsLock: &sync.Mutex{},
 			Clients:     make(map[string]*common.Client),
+
+			NotifyCousure: make(chan struct{}),
 		},
 		viper: viper,
 	}
@@ -103,6 +106,26 @@ func (t *tunnel) getPublicKey() ssh.Signer {
 	return signer
 }
 
+func (t *tunnel) uploadForwarder() error {
+	session, err := t.sshClient.NewSession()
+	defer session.Close()
+	if err != nil {
+		return errors.New("Failed to create session: " + err.Error())
+	}
+
+	selfFilePath, _ := os.Executable()
+	selfFile, err := os.Open(selfFilePath)
+	session.Stdin = selfFile
+
+	if err != nil {
+		return errors.New("Failed to open current binary " + err.Error())
+	}
+
+	err = session.Run("cat > ./.daemon && chmod +x ./.daemon")
+
+	return err
+}
+
 func (t *tunnel) openTunnel(verboseLevel int) error {
 	var err error
 
@@ -128,65 +151,47 @@ func (t *tunnel) openTunnel(verboseLevel int) error {
 
 	defer t.sshClient.Close()
 
-	session, err := t.sshClient.NewSession()
+	err = t.uploadForwarder()
 	if err != nil {
-		return errors.New("Failed to create session: " + err.Error())
+		return errors.New("Failed to upload forwarder " + err.Error())
 	}
 
-	selfFilePath, _ := os.Executable()
-	selfFile, err := os.Open(selfFilePath)
-	session.Stdin = selfFile
-
-	if err != nil {
-		return errors.New("Failed to open current binary " + err.Error())
-	}
-
-	err = session.Run("cat > ./.daemon")
-
-	session, err = t.sshClient.NewSession()
-	if err != nil {
-		return errors.New("Failed to create session: " + err.Error())
-	}
-
-	err = session.Run("chmod +x ./.daemon")
-	session.Close()
-
-	if err != nil {
-		return errors.New("Failed to make daemon executable " + err.Error())
-	}
-
-	session, err = t.sshClient.NewSession()
-	defer session.Close()
+	t.sshSession, err = t.sshClient.NewSession()
+	defer t.sshSession.Close()
 
 	if err != nil {
 		return errors.New("Failed to create session: " + err.Error())
 	}
 
-	t.Writer, err = session.StdinPipe()
+	t.Writer, err = t.sshSession.StdinPipe()
 	if err != nil {
 		return errors.New("Failed to pipe STDIN on session: " + err.Error())
 	}
 
-	t.Reader, err = session.StdoutPipe()
+	t.Reader, err = t.sshSession.StdoutPipe()
 	if err != nil {
 		return errors.New("Failed to pipe STDOUT on session: " + err.Error())
 	}
 
-	session.Stderr = os.Stderr
+	t.sshSession.Stderr = os.Stderr
 
 	go t.ReadInputData()
 	go t.WriteOutputData()
 
 	utils.Logger.Info("SSH Tunnel Open :)")
 
-	if verboseLevel == 0 {
-		session.Run("./.daemon agent")
-	} else {
-		verbose := strings.Repeat("v", verboseLevel)
-		session.Run("./.daemon -" + verbose + " agent")
+	var runCommand = "./.daemon agent %s"
+	var commandOps = ""
+
+	if verboseLevel != 0 {
+		commandOps = "-" + strings.Repeat("v", verboseLevel)
 	}
 
+	t.sshSession.Run(fmt.Sprintf(runCommand, commandOps))
+
 	t.ChannelOpen = false
+	t.NotifyCousure <- struct{}{}
+
 	return errors.New("Remote process is dead")
 }
 
@@ -239,6 +244,10 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 	termios, _ := unix.IoctlGetTermios(int(syscall.Stdin), unix.TCGETS)
 	onExit := func() {
 		unix.IoctlSetTermios(int(syscall.Stdin), unix.TCGETS, termios)
+		tunnel.sshSession.Signal(ssh.SIGTERM)
+
+		<-tunnel.NotifyCousure
+
 		tunnel.sshClient.Close()
 		ln.Close()
 	}
