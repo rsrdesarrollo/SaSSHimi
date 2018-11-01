@@ -13,7 +13,7 @@ purposes.
 
 ### Prerequisites
 
-You only need [golang](https://golang.org/dl/) to use this tool.
+You only need [golang (>=1.10)](https://golang.org/dl/) to build this tool.
 
 ### Installing
 
@@ -21,7 +21,6 @@ Just install the command line tool
 
 ```
 go get  github.com/rsrdesarrollo/SaSSHimi
-go install  github.com/rsrdesarrollo/SaSSHimi
 ```
 
 ### Usage
@@ -43,7 +42,7 @@ Usage:
   SaSSHimi server <user@host:port|host_id> [flags]
 
 Flags:
-      --bind string            Help message for toggle (default "127.0.0.1:8080")
+      --bind string            Help message for toggle (default "127.0.0.1:1080")
   -h, --help                   help for server
   -i, --identity_file string   Path to private key
 
@@ -52,12 +51,23 @@ Global Flags:
   -v, --verbose count   verbose level
 ```
 
+### Configuration File
+
+Like SSH, SaSSHimi has a configuration file where you can set some basic config for your most common hosts.
+You can find a sample of the syntax of this file in [config_sample.yml](config_sample.yml).
+
+By default SaSSHimi try to find this config file at `~/.SaSSHimi.yaml`. You can change this behaviour by using the 
+`--config` flag.
+
+**ONLY USE PASSWORDS IN THE CONFIG AT YOUR OWN RISK**
+
 ### TODO
 
-* Support Public key authentication.
-* Improve configuration file.
-* Add more command options to control binding ports.
-* Implement known_hosts support
+- [x] Support Public key authentication.
+- [ ] Support Enc Private Keys.
+- [x] Improve configuration file.
+- [x] Add more command options to control binding ports.
+- [ ] Implement known_hosts support
 
 ## Contributing
 
