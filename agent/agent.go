@@ -56,6 +56,8 @@ func (a *agent) runProxyServer(done chan struct{}, useHttpProxy bool) {
 		utils.Logger.Fatal("Failed to bind local socket " + err.Error())
 	}
 
+	utils.Logger.Noticef("Remote proxy server bind at [%s] %s", a.sockFamily, a.sockFilePath)
+
 	if useHttpProxy {
 		proxy := goproxy.NewProxyHttpServer()
 
@@ -85,6 +87,11 @@ func (a *agent) runProxyServer(done chan struct{}, useHttpProxy bool) {
 func (a *agent) handleInOutData() {
 	for a.ChannelOpen {
 		msg := <-a.InChannel
+
+		if msg.CloseChannel {
+			a.Close()
+			break
+		}
 
 		a.ClientsLock.Lock()
 		client, prs := a.Clients[msg.ClientId]
@@ -141,7 +148,7 @@ func Run(useHttpProxy bool) {
 	agent := newAgent()
 
 	onExit := func() {
-		utils.Logger.Warning("Agent is closing")
+		utils.Logger.Notice("Agent is closing")
 		selfFilePath, _ := os.Executable()
 		os.Remove(agent.sockFilePath)
 		os.Remove(selfFilePath)
@@ -150,9 +157,9 @@ func Run(useHttpProxy bool) {
 	defer onExit()
 	utils.ExitCallback(onExit)
 
-	listeningSignal := make(chan struct{})
-	go agent.runProxyServer(listeningSignal, useHttpProxy)
-	<-listeningSignal
+	proxyReady := make(chan struct{})
+	go agent.runProxyServer(proxyReady, useHttpProxy)
+	<-proxyReady
 
 	agent.ChannelOpen = true
 

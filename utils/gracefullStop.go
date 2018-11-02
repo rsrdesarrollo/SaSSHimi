@@ -28,6 +28,7 @@ func ExitCallback(callBack func()) {
 	signal.Notify(gracefulStop, syscall.SIGINT)
 	signal.Notify(gracefulStop, syscall.SIGKILL)
 	signal.Notify(gracefulStop, syscall.SIGQUIT)
+	signal.Notify(gracefulStop, syscall.SIGHUP)
 
 	go func() {
 		<-gracefulStop

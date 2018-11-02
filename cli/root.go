@@ -76,12 +76,8 @@ func initConfig() {
 	viper.ReadInConfig()
 
 	if verboseLevel == 0 {
-		logging.SetLevel(logging.ERROR, "SaSSHimi")
-	} else if verboseLevel == 1 {
-		logging.SetLevel(logging.WARNING, "SaSSHimi")
-	} else if verboseLevel == 2 {
 		logging.SetLevel(logging.NOTICE, "SaSSHimi")
-	} else if verboseLevel == 3 {
+	} else if verboseLevel == 1 {
 		logging.SetLevel(logging.INFO, "SaSSHimi")
 	} else {
 		logging.SetLevel(logging.DEBUG, "SaSSHimi")

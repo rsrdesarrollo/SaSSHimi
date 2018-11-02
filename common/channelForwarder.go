@@ -25,7 +25,7 @@ func (c *ChannelForwarder) ReadInputData() {
 
 	utils.Logger.Debug("Reading from io.Reader to InChannel")
 
-	for {
+	for c.ChannelOpen {
 		var inMsg DataMessage
 		err := decoder.Decode(&inMsg)
 		if err != nil {
@@ -43,7 +43,7 @@ func (c *ChannelForwarder) WriteOutputData() {
 
 	utils.Logger.Debug("Writing from OutChannel to io.Writer")
 
-	for {
+	for c.ChannelOpen {
 		outMsg := <-c.OutChannel
 		err := encoder.Encode(outMsg)
 
@@ -58,4 +58,11 @@ func (c *ChannelForwarder) WriteOutputData() {
 
 func (c *ChannelForwarder) Close() {
 	c.ChannelOpen = false
+}
+
+func (c *ChannelForwarder) Terminate() {
+	msg := NewMessage("", nil)
+	msg.CloseChannel = true
+
+	c.OutChannel <- msg
 }

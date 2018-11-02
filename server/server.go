@@ -30,6 +30,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
 
 type tunnel struct {
@@ -80,6 +81,7 @@ func (t *tunnel) getPassword() string {
 	if password == "" {
 		fmt.Printf("%s@%s's password: ", t.getUsername(), t.getRemoteHost())
 		bytePassword, _ := terminal.ReadPassword(int(syscall.Stdin))
+		fmt.Println("")
 		password = string(bytePassword)
 	}
 	return password
@@ -178,7 +180,7 @@ func (t *tunnel) openTunnel(verboseLevel int) error {
 	go t.ReadInputData()
 	go t.WriteOutputData()
 
-	utils.Logger.Info("SSH Tunnel Open :)")
+	utils.Logger.Notice("SSH Tunnel Open")
 
 	var runCommand = "./.daemon agent %s"
 	var commandOps = ""
@@ -239,14 +241,30 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 		panic("Failed to bind local port " + err.Error())
 	}
 
+	utils.Logger.Notice("Proxy bind at", bindAddress)
+
 	tunnel := newTunnel(viper)
 
 	termios, _ := unix.IoctlGetTermios(int(syscall.Stdin), unix.TCGETS)
 	onExit := func() {
 		unix.IoctlSetTermios(int(syscall.Stdin), unix.TCGETS, termios)
-		tunnel.sshSession.Signal(ssh.SIGTERM)
+		tunnel.Terminate()
 
-		<-tunnel.NotifyCousure
+		utils.Logger.Notice("Waiting to remote process to clean up...")
+		select {
+		case <-tunnel.NotifyCousure:
+		case <-time.After(5 * time.Second):
+			tunnel.sshSession.Signal(ssh.SIGTERM)
+			utils.Logger.Warning("Remote close timeout. Sending TERM signal.")
+		}
+
+		select {
+		case <-tunnel.NotifyCousure:
+		case <-time.After(5 * time.Second):
+			utils.Logger.Error("Remote process don't respond. Force close channel.")
+			utils.Logger.Error("IMPORTANT: This might leave files in remote host.")
+			tunnel.sshSession.Close()
+		}
 
 		tunnel.sshClient.Close()
 		ln.Close()
