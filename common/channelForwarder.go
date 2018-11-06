@@ -5,6 +5,7 @@ import (
 	"github.com/rsrdesarrollo/SaSSHimi/utils"
 	"io"
 	"sync"
+	"time"
 )
 
 type ChannelForwarder struct {
@@ -63,6 +64,20 @@ func (c *ChannelForwarder) Close() {
 func (c *ChannelForwarder) Terminate() {
 	msg := NewMessage("", nil)
 	msg.CloseChannel = true
+
+	c.OutChannel <- msg
+}
+
+func (c *ChannelForwarder) KeepAlive(){
+	for c.ChannelOpen {
+		c.sendKeepAlive()
+		time.Sleep(30 * time.Second)
+	}
+}
+
+func (c *ChannelForwarder) sendKeepAlive() {
+	msg := NewMessage("", nil)
+	msg.KeepAlive = true
 
 	c.OutChannel <- msg
 }

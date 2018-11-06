@@ -201,6 +201,10 @@ func (t *tunnel) handleClients() {
 	for t.ChannelOpen {
 		msg := <-t.InChannel
 
+		if msg.KeepAlive {
+			continue
+		}
+
 		t.ClientsLock.Lock()
 
 		client, prs := t.Clients[msg.ClientId]
@@ -281,6 +285,7 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 	}()
 
 	go tunnel.handleClients()
+	go tunnel.KeepAlive()
 
 	for tunnel.ChannelOpen {
 		conn, err := ln.Accept()

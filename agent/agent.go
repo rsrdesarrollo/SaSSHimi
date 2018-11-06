@@ -88,6 +88,10 @@ func (a *agent) handleInOutData() {
 	for a.ChannelOpen {
 		msg := <-a.InChannel
 
+		if msg.KeepAlive {
+			continue
+		}
+
 		if msg.CloseChannel {
 			a.Close()
 			break

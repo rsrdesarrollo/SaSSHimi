@@ -30,4 +30,5 @@ type DataMessage struct {
 	DeadClient   bool
 	Data         []byte
 	CloseChannel bool
+	KeepAlive    bool
 }
