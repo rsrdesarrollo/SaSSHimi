@@ -6,6 +6,9 @@ Emulate `ssh -D` behavior even if `AllowTcpForwarding` is disabled by administra
 the tunnel sending serialized data through STDIN to a remote process (which is running a Socks5 Server) and receiving
 the response trought STDOUT on a normal SSH session channel.
 
+### Authors
+* **Raúl Sampedro** - [@rsrdesarrollo](https://www.linkedin.com/in/rsrdesarrollo/) - Initial Work
+
 ## Getting Started
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing 
@@ -78,10 +81,6 @@ conduct, and the process for submitting pull requests to this project.
 
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the 
 [tags on this repository](https://github.com/rsrdesarrollo/SaSSHimi/tags).
-
-## Authors
-
-* **Raúl Sampedro** - *Initial work* - [@rsrdesarrollo](https://github.com/rsrdesarrollo)
 
 ## License
 
