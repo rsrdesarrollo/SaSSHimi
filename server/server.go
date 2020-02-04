@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	user2 "os/user"
 	"strings"
 	"sync"
@@ -35,9 +36,26 @@ import (
 
 type tunnel struct {
 	common.ChannelForwarder
-	sshClient  *ssh.Client
-	sshSession *ssh.Session
-	viper      *viper.Viper
+	sshClient      *ssh.Client
+	sshSession     *ssh.Session
+	viper          *viper.Viper
+	transparentCmd []string
+}
+
+func newTransparentTunnel(transparentCmd []string) *tunnel {
+	return &tunnel{
+		ChannelForwarder: common.ChannelForwarder{
+			OutChannel: make(chan *common.DataMessage, 10),
+			InChannel:  make(chan *common.DataMessage, 10),
+
+			ChannelOpen: true,
+			ClientsLock: &sync.Mutex{},
+			Clients:     make(map[string]*common.Client),
+
+			NotifyClosure: make(chan struct{}),
+		},
+		transparentCmd: transparentCmd,
+	}
 }
 
 func newTunnel(viper *viper.Viper) *tunnel {
@@ -50,7 +68,7 @@ func newTunnel(viper *viper.Viper) *tunnel {
 			ClientsLock: &sync.Mutex{},
 			Clients:     make(map[string]*common.Client),
 
-			NotifyCousure: make(chan struct{}),
+			NotifyClosure: make(chan struct{}),
 		},
 		viper: viper,
 	}
@@ -128,6 +146,34 @@ func (t *tunnel) uploadForwarder() error {
 	return err
 }
 
+func (t *tunnel) openTransparentTunnel() error {
+	var err error
+
+	cmd := exec.Command(t.transparentCmd[0], t.transparentCmd[1:]...)
+
+	t.Writer, _ = cmd.StdinPipe()
+	t.Reader, _ = cmd.StdoutPipe()
+
+	cmd.Stderr = os.Stderr
+
+	go t.ReadInputData()
+	go t.WriteOutputData()
+
+
+	utils.Logger.Notice("Transparent Tunnel Opening")
+
+	err = cmd.Run()
+
+	if err != nil {
+		return errors.New("Run transparent command error: " + err.Error())
+	}
+
+	t.ChannelOpen = false
+	t.NotifyClosure <- struct{}{}
+
+	return errors.New("Remote process is dead")
+}
+
 func (t *tunnel) openTunnel(verboseLevel int) error {
 	var err error
 
@@ -192,7 +238,7 @@ func (t *tunnel) openTunnel(verboseLevel int) error {
 	t.sshSession.Run(fmt.Sprintf(runCommand, commandOps))
 
 	t.ChannelOpen = false
-	t.NotifyCousure <- struct{}{}
+	t.NotifyClosure <- struct{}{}
 
 	return errors.New("Remote process is dead")
 }
@@ -237,6 +283,48 @@ func (t *tunnel) handleClients() {
 	}
 }
 
+func RunTransparent(transparentCmd []string, bindAddress string) {
+	ln, err := net.Listen("tcp", bindAddress)
+
+	if err != nil {
+		panic("Failed to bind local port " + err.Error())
+	}
+
+	utils.Logger.Notice("Proxy bind at", bindAddress)
+
+	tunnel := newTransparentTunnel(transparentCmd)
+
+	go func() {
+		err = tunnel.openTransparentTunnel()
+
+		if err != nil {
+			utils.Logger.Fatal("Failed to open tunnel ", err.Error())
+		}
+	}()
+
+	go tunnel.handleClients()
+	go tunnel.KeepAlive()
+
+	for tunnel.ChannelOpen {
+		conn, err := ln.Accept()
+		if err != nil {
+			utils.Logger.Fatalf("Error in conncetion accept: %s", err.Error())
+			continue
+		}
+
+		utils.Logger.Debug("New connection from ", conn.RemoteAddr().String())
+
+		client := common.NewClient(
+			conn.RemoteAddr().String(),
+			conn,
+			tunnel.OutChannel,
+		)
+
+		tunnel.Clients[client.Id] = client
+		go client.ReadFromClientToChannel()
+	}
+}
+
 func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 
 	ln, err := net.Listen("tcp", bindAddress)
@@ -256,14 +344,14 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 
 		utils.Logger.Notice("Waiting to remote process to clean up...")
 		select {
-		case <-tunnel.NotifyCousure:
+		case <-tunnel.NotifyClosure:
 		case <-time.After(5 * time.Second):
 			tunnel.sshSession.Signal(ssh.SIGTERM)
 			utils.Logger.Warning("Remote close timeout. Sending TERM signal.")
 		}
 
 		select {
-		case <-tunnel.NotifyCousure:
+		case <-tunnel.NotifyClosure:
 		case <-time.After(5 * time.Second):
 			utils.Logger.Error("Remote process don't respond. Force close channel.")
 			utils.Logger.Error("IMPORTANT: This might leave files in remote host.")

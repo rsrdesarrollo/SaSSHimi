@@ -15,25 +15,25 @@
 package cli
 
 import (
-	"github.com/rsrdesarrollo/SaSSHimi/agent"
+	"github.com/rsrdesarrollo/SaSSHimi/server"
 	"github.com/spf13/cobra"
 )
 
-var useHttpProxy bool
-var keepBinary bool
 
-// agentCmd represents the agent command
-var agentCmd = &cobra.Command{
-	Use:   "agent",
-	Short: "Run as remote agent process",
+var transparentCmd = &cobra.Command{
+	Use:   "transparent <tunnel_command>",
+	Short: "Run local server to create tunnels executing transparent command",
+	Long:  ``,
+	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		agent.Run(useHttpProxy, keepBinary)
+
+		server.RunTransparent(args, bindAddress)
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(agentCmd)
+	rootCmd.AddCommand(transparentCmd)
 
-	agentCmd.Flags().BoolVar(&useHttpProxy, "use-http", false, "Use HTTP proxy instead of HTTP")
-	agentCmd.Flags().BoolVarP(&keepBinary, "keep-binary", "k",  false, "Do not remove binary when closing")
+	transparentCmd.Flags().StringVar(&bindAddress, "bind", "127.0.0.1:1080", "Set local bind address and port")
+	transparentCmd.Flags().StringVarP(&idFile, "identity_file", "i", "", "Path to private key")
 }

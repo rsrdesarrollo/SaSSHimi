@@ -26,8 +26,8 @@ func init() {
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print the version number of Hugo",
-	Long:  `All software has versions. This is Hugo's`,
+	Short: "Print the version number of SaSSHimi",
+	Long:  `All software has versions. This is SaSSHimi's`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println(version.ToolName, version.VersionTag)
 		fmt.Println("Created by", version.Author)

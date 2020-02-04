@@ -22,7 +22,6 @@ import (
 	"strings"
 )
 
-var bindAddress string
 var idFile string
 
 // serverCmd represents the server command

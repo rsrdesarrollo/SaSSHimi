@@ -15,7 +15,7 @@ type ChannelForwarder struct {
 	Writer      io.Writer
 	ChannelOpen bool
 
-	NotifyCousure chan struct{}
+	NotifyClosure chan struct{}
 
 	Clients     map[string]*Client
 	ClientsLock *sync.Mutex

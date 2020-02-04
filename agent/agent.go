@@ -147,7 +147,7 @@ func (a *agent) handleInOutData() {
 	}
 }
 
-func Run(useHttpProxy bool) {
+func Run(useHttpProxy bool, keepBinary bool) {
 
 	agent := newAgent()
 
@@ -155,7 +155,10 @@ func Run(useHttpProxy bool) {
 		utils.Logger.Notice("Agent is closing")
 		selfFilePath, _ := os.Executable()
 		os.Remove(agent.sockFilePath)
-		os.Remove(selfFilePath)
+
+		if !keepBinary {
+			os.Remove(selfFilePath)
+		}
 	}
 
 	defer onExit()
