@@ -1,0 +1,36 @@
+name: Go Build
+
+on: [ push, pull_request, workflow_dispatch ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.18
+
+    - name: Build for linux/amd64
+      run: env GOOS=linux GOARCH=amd64 go build -v
+
+    - name: Build for windows/amd64
+      run: env GOOS=windows GOARCH=amd64 go build -v
+
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v2.2.4
+      with:
+        # Artifact name
+        name: "SaSSHimi"
+        # A file, directory or wildcard pattern that describes what to upload
+        path: "SaSSHimi*"
+
+    - name: Publish
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+          files: 'SaSSHimi*'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
