@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
-	"golang.org/x/sys/unix"
 	"io/ioutil"
 	"net"
 	"os"
@@ -337,9 +336,9 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 
 	tunnel := newTunnel(viper)
 
-	termios, _ := unix.IoctlGetTermios(int(syscall.Stdin), unix.TCGETS)
+	termios := TermiosSaveStdin()
 	onExit := func() {
-		unix.IoctlSetTermios(int(syscall.Stdin), unix.TCGETS, termios)
+		TermiosRestoreStdin(termios)
 		tunnel.Terminate()
 
 		utils.Logger.Notice("Waiting to remote process to clean up...")
