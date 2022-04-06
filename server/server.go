@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
-	"golang.org/x/sys/unix"
 	"io/ioutil"
 	"net"
 	"os"
@@ -94,6 +93,12 @@ func (t *tunnel) getUsername() string {
 	return user
 }
 
+func (t *tunnel) getRemoteExecutable() string {
+	remoteExecutable := t.viper.GetString("RemoteExecutable")
+	utils.Logger.Debug("Remote Executable:", remoteExecutable)
+	return remoteExecutable
+}
+
 func (t *tunnel) getPassword() string {
 	password := t.viper.GetString("Password")
 	if password == "" {
@@ -133,7 +138,15 @@ func (t *tunnel) uploadForwarder() error {
 		return errors.New("Failed to create session: " + err.Error())
 	}
 
-	selfFilePath, _ := os.Executable()
+	remoteExecutable := t.getRemoteExecutable()
+	var selfFilePath string
+
+	if remoteExecutable == "" {
+		selfFilePath, _ = os.Executable()
+	} else {
+		selfFilePath = remoteExecutable
+	}
+
 	selfFile, err := os.Open(selfFilePath)
 	session.Stdin = selfFile
 
@@ -337,9 +350,9 @@ func Run(viper *viper.Viper, bindAddress string, verboseLevel int) {
 
 	tunnel := newTunnel(viper)
 
-	termios, _ := unix.IoctlGetTermios(int(syscall.Stdin), unix.TCGETS)
+	termios := TermiosSaveStdin()
 	onExit := func() {
-		unix.IoctlSetTermios(int(syscall.Stdin), unix.TCGETS, termios)
+		TermiosRestoreStdin(termios)
 		tunnel.Terminate()
 
 		utils.Logger.Notice("Waiting to remote process to clean up...")
