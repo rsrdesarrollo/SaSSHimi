@@ -23,7 +23,7 @@ You only need [golang (>=1.10)](https://golang.org/dl/) to build this tool.
 Just install the command line tool
 
 ```
-go get  github.com/rsrdesarrollo/SaSSHimi
+go install github.com/rsrdesarrollo/SaSSHimi@latest
 ```
 
 ### Usage
@@ -45,9 +45,10 @@ Usage:
   SaSSHimi server <user@host:port|host_id> [flags]
 
 Flags:
-      --bind string            Help message for toggle (default "127.0.0.1:1080")
-  -h, --help                   help for server
-  -i, --identity_file string   Path to private key
+      --bind string                Help message for toggle (default "127.0.0.1:1080")
+  -h, --help                       help for server
+  -i, --identity_file string       Path to private key
+      --remote_executable string   Path to SaSSHimi to run on remote machine
 
 Global Flags:
       --config string   config file (default is $HOME/.SaSSHimi.yaml)
