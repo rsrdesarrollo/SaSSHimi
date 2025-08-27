@@ -1,6 +1,9 @@
 name: Go Build
 
-on: [ push, pull_request, workflow_dispatch ]
+on:
+  pull_request:
+    types:
+      - closed
 
 jobs:
   build:
@@ -11,16 +14,25 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
-        go-version: 1.18
+        go-version: 1.23
 
     - name: Build for linux/amd64
       run: env GOOS=linux GOARCH=amd64 go build -v
 
+    - name: Build for linux/arm64
+      run: env GOOS=linux GOARCH=arm64 go build -v
+
     - name: Build for windows/amd64
       run: env GOOS=windows GOARCH=amd64 go build -v
+    
+    - name: Build for darwin/amd64
+      run: env GOOS=darwin GOARCH=amd64 go build -v
+
+    - name: Build for darwin/arm64
+      run: env GOOS=darwin GOARCH=arm64 go build -v
 
     - name: Upload Build Artifact
-      uses: actions/upload-artifact@v2.2.4
+      uses: actions/upload-artifact@v4
       with:
         # Artifact name
         name: "SaSSHimi"
