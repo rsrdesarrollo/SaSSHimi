@@ -1,6 +1,10 @@
-name: Go Build
+---
+name: Build and Release
 
 on:
+  push:
+    tags:
+      - 'v*'
   pull_request:
     types:
       - closed
@@ -9,40 +13,50 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.23
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.23
 
-    - name: Build for linux/amd64
-      run: env GOOS=linux GOARCH=amd64 go build -v
+      - name: Build for linux/amd64
+        run: >
+          env GOOS=linux GOARCH=amd64 go build -v -o SaSSHimi-linux-amd64
 
-    - name: Build for linux/arm64
-      run: env GOOS=linux GOARCH=arm64 go build -v
+      - name: Build for linux/arm64
+        run: >
+          env GOOS=linux GOARCH=arm64 go build -v -o SaSSHimi-linux-arm64
 
-    - name: Build for windows/amd64
-      run: env GOOS=windows GOARCH=amd64 go build -v
-    
-    - name: Build for darwin/amd64
-      run: env GOOS=darwin GOARCH=amd64 go build -v
+      - name: Build for windows/amd64
+        run: >
+          env GOOS=windows GOARCH=amd64 go build -v 
+          -o SaSSHimi-windows-amd64.exe
 
-    - name: Build for darwin/arm64
-      run: env GOOS=darwin GOARCH=arm64 go build -v
+      - name: Build for darwin/amd64
+        run: >
+          env GOOS=darwin GOARCH=amd64 go build -v -o SaSSHimi-darwin-amd64
 
-    - name: Upload Build Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        # Artifact name
-        name: "SaSSHimi"
-        # A file, directory or wildcard pattern that describes what to upload
-        path: "SaSSHimi*"
+      - name: Build for darwin/arm64
+        run: >
+          env GOOS=darwin GOARCH=arm64 go build -v -o SaSSHimi-darwin-arm64
 
-    - name: Publish
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-          files: 'SaSSHimi*'
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: "SaSSHimi-binaries"
+          path: "SaSSHimi-*"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            SaSSHimi-linux-amd64
+            SaSSHimi-linux-arm64
+            SaSSHimi-windows-amd64.exe
+            SaSSHimi-darwin-amd64
+            SaSSHimi-darwin-arm64
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
