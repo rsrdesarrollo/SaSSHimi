@@ -31,6 +31,7 @@ bump-patch:
 	@git add .
 	@git commit -m "Bump version to v$(MAJOR).$(MINOR).$(NEW_PATCH)"
 	@git tag v$(MAJOR).$(MINOR).$(NEW_PATCH)
+	@git push origin master
 	@git push origin v$(MAJOR).$(MINOR).$(NEW_PATCH)
 	@echo "Successfully bumped and pushed version v$(MAJOR).$(MINOR).$(NEW_PATCH)"
 
@@ -42,6 +43,7 @@ bump-minor:
 	@git add .
 	@git commit -m "Bump version to v$(MAJOR).$(NEW_MINOR).0"
 	@git tag v$(MAJOR).$(NEW_MINOR).0
+	@git push origin master
 	@git push origin v$(MAJOR).$(NEW_MINOR).0
 	@echo "Successfully bumped and pushed version v$(MAJOR).$(NEW_MINOR).0"
 
@@ -53,5 +55,6 @@ bump-major:
 	@git add .
 	@git commit -m "Bump version to v$(NEW_MAJOR).0.0"
 	@git tag v$(NEW_MAJOR).0.0
+	@git push origin master
 	@git push origin v$(NEW_MAJOR).0.0
 	@echo "Successfully bumped and pushed version v$(NEW_MAJOR).0.0"
